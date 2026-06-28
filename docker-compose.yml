@@ -1,0 +1,86 @@
+# ==============================================
+# x-llamaindex Docker Compose
+# ==============================================
+# Usage:
+#   Development: docker compose up -d
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x-llamaindex
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      # LLM Provider
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      - TEMPERATURE=${TEMPERATURE:-0.1}
+      # DeepSeek
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_BASE=${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      # Kimi (optional)
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - KIMI_API_BASE=${KIMI_API_BASE:-https://api.moonshot.cn/v1}
+      - KIMI_MODEL=${KIMI_MODEL:-moonshot-v1-8k}
+      # GLM (optional)
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - GLM_API_BASE=${GLM_API_BASE:-https://open.bigmodel.cn/api/paas/v4}
+      - GLM_MODEL=${GLM_MODEL:-glm-4-flash}
+      # Embedding
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-deepseek}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-ada-002}
+      - EMBEDDING_DIMENSION=${EMBEDDING_DIMENSION:-1536}
+      # Vector Store
+      - VECTOR_STORE_TYPE=${VECTOR_STORE_TYPE:-chroma}
+      - CHROMA_PERSIST_DIR=/app/storage/chroma
+      - CHROMA_COLLECTION_NAME=${CHROMA_COLLECTION_NAME:-llamaindex_docs}
+      # Server
+      - DEBUG=${DEBUG:-false}
+      - PORT=8000
+      - HOST=0.0.0.0
+      # RAG
+      - CHUNK_SIZE=${CHUNK_SIZE:-512}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
+      - SIMILARITY_TOP_K=${SIMILARITY_TOP_K:-5}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.5}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE_PATH=/app/logs/rag_app.log
+      # Data
+      - DATA_DIR=/app/data
+    volumes:
+      # Persist vector store data
+      - chroma_data:/app/storage/chroma
+      # Persist logs
+      - app_logs:/app/logs
+      # Mount data directory (read-only)
+      - ./data:/app/data:ro
+      # Mount config (optional)
+      - ./config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - rag-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  chroma_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge
