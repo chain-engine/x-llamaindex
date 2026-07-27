@@ -21,8 +21,8 @@ logging:
 
 # LLM settings
 llm:
-  provider: "openai"
-  model: "gpt-3.5-turbo"
+  provider: "deepseek"
+  model: "deepseek-v4-pro"
   temperature: 0.1
   max_tokens: 2048
   timeout: 60

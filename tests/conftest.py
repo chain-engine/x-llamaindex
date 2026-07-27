@@ -7,14 +7,37 @@ Pytest 配置文件
 """
 
 import os
+import sys
 import pytest
 from pathlib import Path
 from typing import Generator
+from unittest.mock import Mock
 
-# 设置测试环境变量
-os.environ["OPENAI_API_KEY"] = "test-api-key"
-os.environ["LLM_PROVIDER"] = "openai"
+# 设置测试环境变量（使用 fake key，避免触发真实 API 调用）
+os.environ["LLM_PROVIDER"] = "deepseek"
+os.environ["DEEPSEEK_API_KEY"] = "test-fake-key-do-not-use-in-production"
+os.environ["DEEPSEEK_API_BASE"] = "https://api.deepseek.com/v1"
 os.environ["DEBUG"] = "true"
+
+
+@pytest.fixture
+def mock_llm():
+    """Mock LLM fixture"""
+    llm = Mock()
+    llm.complete = Mock(return_value=Mock(text="This is a mock response."))
+    llm.chat = Mock(return_value=Mock(message=Mock(content="This is a mock chat response.")))
+    llm.stream = Mock(return_value=iter(["Mock", " stream", " response"]))
+    return llm
+
+
+@pytest.fixture
+def mock_embed_model():
+    """Mock embedding model fixture"""
+    import numpy as np
+    embed_model = Mock()
+    embed_model.get_text_embedding = Mock(return_value=[0.1] * 1536)
+    embed_model.get_text_embeddings = Mock(return_value=[[0.1] * 1536] * 5)
+    return embed_model
 
 
 @pytest.fixture
@@ -58,26 +81,3 @@ def sample_text():
 def temp_dir(tmp_path: Path) -> Generator[Path, None, None]:
     """临时目录 fixture"""
     yield tmp_path
-
-
-@pytest.fixture
-def mock_llm():
-    """模拟 LLM fixture"""
-    from unittest.mock import Mock
-
-    llm = Mock()
-    llm.complete = Mock(return_value=Mock(text="This is a mock response."))
-    return llm
-
-
-@pytest.fixture
-def mock_embed_model():
-    """模拟嵌入模型 fixture"""
-    from unittest.mock import Mock
-    import numpy as np
-
-    embed_model = Mock()
-    embed_model.get_text_embedding = Mock(
-        return_value=np.random.rand(1536).tolist()
-    )
-    return embed_model

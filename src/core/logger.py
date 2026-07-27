@@ -5,17 +5,49 @@
 使用 loguru 实现结构化日志
 """
 
-import os
-import sys
 from typing import Callable, Final
-from loguru import logger
 from pathlib import Path
+
+from loguru import logger
 
 # 移除默认的处理器
 logger.remove()
 
+# 延迟加载日志配置
+_log_config = None
+
+
+def _get_log_config() -> dict:
+    """获取日志配置（延迟加载）"""
+    global _log_config
+    if _log_config is None:
+        try:
+            from src.core import settings
+            _log_config = {
+                'file_path': settings.LOG_FILE_PATH,
+                'level': settings.LOG_LEVEL,
+                'rotation': settings.LOG_ROTATION,
+                'retention': settings.LOG_RETENTION,
+            }
+        except Exception:
+            _log_config = {
+                'file_path': 'logs/rag_app.log',
+                'level': 'INFO',
+                'rotation': '1 day',
+                'retention': '7 days',
+            }
+    return _log_config
+
+
+# 获取配置
+cfg = _get_log_config()
+_log_file_path = cfg['file_path']
+_log_level = cfg['level']
+_log_rotation = cfg['rotation']
+_log_retention = cfg['retention']
+
 # 确保日志目录存在
-log_dir: Path = Path("logs")
+log_dir = Path(_log_file_path).parent
 log_dir.mkdir(parents=True, exist_ok=True)
 
 # 配置日志格式
@@ -28,11 +60,11 @@ LOG_FORMAT: Final[str] = (
 
 # 配置文件日志处理器
 logger.add(
-    sink=log_dir / "rag_app_{time:YYYY-MM-DD}.log",
-    rotation="1 day",
-    retention="7 days",
+    sink=_log_file_path,
+    rotation=_log_rotation,
+    retention=_log_retention,
     compression="zip",
-    level="DEBUG",
+    level=_log_level,
     format=LOG_FORMAT,
     enqueue=True,
     encoding="utf-8"
@@ -53,5 +85,5 @@ def get_logger(name: str = __name__):
     return logger.bind(name=name)
 
 
-# 导出logger实例
+# 导出
 __all__: Final[list[str]] = ['logger', 'get_logger']

@@ -351,14 +351,14 @@ def main():
 
     # 加载环境变量
     load_dotenv()
+    setup_environment()
 
-    # 检查 API 密钥
-    if not os.getenv("OPENAI_API_KEY"):
-        print("\n警告: 未设置 OPENAI_API_KEY 环境变量")
-        print("请复制 .env.example 到 .env 并设置 API 密钥")
+    # 检查 API 密钥（使用项目配置系统）
+    llm = get_llm()
+    if not llm:
+        print("\n警告: 无法创建 LLM 实例")
+        print("请在 .env 中配置 LLM_PROVIDER 和对应的 API Key")
         print("\n演示将使用模拟数据...")
-
-        # 使用模拟数据进行演示
         demo_with_mock_data()
         return
 

@@ -17,16 +17,15 @@ from llama_index.core import (
 )
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.indices.query.query_transform import HyDEQueryTransform
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
+
+from src.utils import setup_environment, get_llm
 
 # 加载环境变量
 load_dotenv()
+setup_environment()
 
-# 配置 OpenAI API 密钥
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("请设置 OPENAI_API_KEY 环境变量")
+# 获取 LLM
+llm = get_llm()
 
 # 1. 加载文档
 print("正在加载文档...")
@@ -69,15 +68,15 @@ print("正在创建查询引擎...")
 
 # 基础向量查询引擎
 vector_query_engine = vector_index.as_query_engine(
-    llm=OpenAI(model="gpt-3.5-turbo"),
+    llm=llm,
     similarity_top_k=3
 )
 
 # 使用 HyDE 转换的查询引擎
 hyde_query_engine = vector_index.as_query_engine(
-    llm=OpenAI(model="gpt-3.5-turbo"),
+    llm=llm,
     similarity_top_k=3,
-    query_transform=HyDEQueryTransform(llm=OpenAI(model="gpt-3.5-turbo"))
+    query_transform=HyDEQueryTransform(llm=llm)
 )
 
 # 创建路由查询引擎
@@ -94,7 +93,7 @@ query_engine = RouterQueryEngine(
             "query_engine": hyde_query_engine
         }
     ],
-    llm=OpenAI(model="gpt-3.5-turbo")
+    llm=llm
 )
 
 print("查询引擎创建完成")

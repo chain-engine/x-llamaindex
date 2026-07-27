@@ -113,8 +113,11 @@ class RAGQueryEngine:
             self._retriever = HybridRetriever(
                 index=self.index,
                 similarity_top_k=self.similarity_top_k,
+                vector_weight=0.7,
+                keyword_weight=0.3,
             )
-            engine_params["retriever"] = self._retriever.retriever
+            # HybridRetriever 本身就是 BaseRetriever，直接传入
+            engine_params["retriever"] = self._retriever
 
         # 配置重排序
         if self.use_reranker:

@@ -12,16 +12,15 @@
 import os
 from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
+
+from src.utils import setup_environment, get_llm
 
 # 加载环境变量
 load_dotenv()
+setup_environment()
 
-# 配置 OpenAI API 密钥
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("请设置 OPENAI_API_KEY 环境变量")
+# 获取 LLM（使用项目的配置系统，支持 DeepSeek/Kimi/GLM）
+llm = get_llm()
 
 # 1. 加载文档
 print("正在加载文档...")
@@ -41,7 +40,7 @@ print("索引构建完成")
 # 3. 创建查询引擎
 print("正在创建查询引擎...")
 query_engine = index.as_query_engine(
-    llm=OpenAI(model="gpt-3.5-turbo"),
+    llm=llm,
     similarity_top_k=3
 )
 

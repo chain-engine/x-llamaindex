@@ -357,38 +357,61 @@ Return only the score as a number."""
     def get_aggregated_metrics(self) -> EvaluationMetrics:
         """获取聚合的评估指标
 
+        聚合规则：
+        - 检索指标（precision/recall/mrr/ndcg/relevancy）：取平均值
+        - 生成指标（faithfulness/coherence）：取平均值
+        - 性能指标（latency）：总和 / 总查询数 = 平均延迟
+        - 统计（total_queries/total_documents）：求和
+
         Returns:
             聚合后的评估指标
         """
         if not self._metrics_history:
             return EvaluationMetrics()
 
-        aggregated = EvaluationMetrics()
-        n = len(self._metrics_history)
+        # 分离不同类型的指标
+        retrieval_metrics = []
+        generation_metrics = []
+        latency_metrics = []
 
         for metrics in self._metrics_history:
-            aggregated.precision += metrics.precision
-            aggregated.recall += metrics.recall
-            aggregated.mrr += metrics.mrr
-            aggregated.ndcg += metrics.ndcg
-            aggregated.faithfulness += metrics.faithfulness
-            aggregated.relevancy += metrics.relevancy
-            aggregated.coherence += metrics.coherence
-            aggregated.latency += metrics.latency
-            aggregated.throughput += metrics.throughput
-            aggregated.total_queries += metrics.total_queries
-            aggregated.total_documents += metrics.total_documents
+            if metrics.total_queries > 0 and metrics.total_documents > 0:
+                retrieval_metrics.append(metrics)
+            if metrics.faithfulness > 0 or metrics.coherence > 0:
+                generation_metrics.append(metrics)
+            if metrics.latency > 0:
+                latency_metrics.append(metrics)
 
-        # 计算平均值
-        aggregated.precision /= n
-        aggregated.recall /= n
-        aggregated.mrr /= n
-        aggregated.ndcg /= n
-        aggregated.faithfulness /= n
-        aggregated.relevancy /= n
-        aggregated.coherence /= n
-        aggregated.latency /= n
-        aggregated.throughput /= n
+        aggregated = EvaluationMetrics()
+
+        # 聚合检索指标
+        if retrieval_metrics:
+            n_ret = len(retrieval_metrics)
+            for metrics in retrieval_metrics:
+                aggregated.precision += metrics.precision / n_ret
+                aggregated.recall += metrics.recall / n_ret
+                aggregated.mrr += metrics.mrr / n_ret
+                aggregated.ndcg += metrics.ndcg / n_ret
+                aggregated.relevancy += metrics.relevancy / n_ret
+
+        # 聚合生成指标
+        if generation_metrics:
+            n_gen = len(generation_metrics)
+            for metrics in generation_metrics:
+                aggregated.faithfulness += metrics.faithfulness / n_gen
+                aggregated.coherence += metrics.coherence / n_gen
+
+        # 聚合性能指标（latency 是平均值，throughput 是总和）
+        total_latency = sum(m.total_queries * m.latency for m in latency_metrics) if latency_metrics else 0
+        total_throughput_queries = sum(m.total_queries for m in latency_metrics) if latency_metrics else 0
+        total_throughput_time = sum(m.latency for m in latency_metrics) if latency_metrics else 0
+
+        aggregated.latency = total_latency / total_throughput_queries if total_throughput_queries > 0 else 0
+        aggregated.throughput = total_throughput_queries / total_throughput_time if total_throughput_time > 0 else 0
+
+        # 聚合统计
+        aggregated.total_queries = sum(m.total_queries for m in self._metrics_history)
+        aggregated.total_documents = sum(m.total_documents for m in self._metrics_history)
 
         return aggregated
 

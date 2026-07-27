@@ -7,12 +7,12 @@ API 路由定义
 """
 
 import time
-from typing import Optional
+from typing import Optional, AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-from src.api.schemas import (
+from src.schemas import (
     QueryRequest,
     QueryResponse,
     ChatRequest,
@@ -30,8 +30,7 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-
-# 全局 RAG 系统实例（延迟初始化）
+# 全局 RAG 系统实例（通过 app.state 共享）
 _rag_system = None
 
 
@@ -39,23 +38,49 @@ def get_rag_system():
     """获取 RAG 系统实例"""
     global _rag_system
     if _rag_system is None:
-        from src.api.app import init_rag_system
-        _rag_system = init_rag_system()
+        from src.engines.query_engine import QueryEngine
+        from src.engines.chat_engine import ChatEngine
+        from src.indexes.index_manager import IndexManager
+        from src.core.container import container
+
+        # 注册服务到容器
+        if not container.is_registered(IndexManager):
+            container.register(IndexManager, lambda: IndexManager())
+        if not container.is_registered(QueryEngine):
+            container.register(QueryEngine, lambda: QueryEngine(
+                index_manager=container.resolve(IndexManager)
+            ))
+        if not container.is_registered(ChatEngine):
+            container.register(ChatEngine, lambda: ChatEngine(
+                index_manager=container.resolve(IndexManager)
+            ))
+
+        # 简单的 RAG 系统封装
+        class SimpleRAGSystem:
+            def __init__(self):
+                self.index_manager = container.resolve(IndexManager)
+                self.query_engine = container.resolve(QueryEngine)
+                self.conversation_manager = container.resolve(ChatEngine)
+
+            @property
+            def is_initialized(self):
+                return getattr(self.index_manager, 'index', None) is not None
+
+        _rag_system = SimpleRAGSystem()
+
     return _rag_system
 
 
 @router.get("/health", response_model=HealthResponse, tags=["系统"])
 async def health_check():
-    """健康检查端点
-
-    检查服务是否正常运行
-    """
+    """健康检查端点"""
+    rag = get_rag_system()
     return HealthResponse(
         status="healthy",
         version="0.1.0",
         components={
             "api": "ok",
-            "index": "ok" if _rag_system else "not_initialized",
+            "index": "ok" if rag.is_initialized else "not_initialized",
         },
     )
 
@@ -140,7 +165,6 @@ async def chat(request: ChatRequest):
     支持基于会话的多轮对话
     """
     try:
-        rag = get_rag_system()
 
         # 获取或创建会话
         session_id = request.session_id
